@@ -1,3 +1,4 @@
+import numpy as np
 import pytest
 
 from omr_engine.classification import QuestionState, classify_question
@@ -90,3 +91,21 @@ def test_invalid_inputs_raise_value_errors() -> None:
         apply_inset(PixelBox(0, 0, 10, 10), inset_ratio=0.5)
     with pytest.raises(ValueError):
         measure_bubble_fill([[255, 255]], NormalizedBox(0.0, 0.0, 1.0, 1.0), dark_threshold=300)
+
+
+
+def test_measurement_accepts_numpy_grayscale_arrays() -> None:
+    image = np.full((100, 100), 255, dtype=np.uint8)
+    region = NormalizedBox(x=0.1, y=0.1, width=0.1, height=0.1)
+    measured = measure_bubble_fill(image, region, inset_ratio=0.15)
+    assert measured.fill_ratio == 0.0
+    assert measured.mean_intensity == 255.0
+
+    with pytest.raises(ValueError, match="at least one row"):
+        measure_bubble_fill(np.empty((0, 100), dtype=np.uint8), region)
+
+
+def test_normalized_box_rejects_non_finite_coordinates() -> None:
+    for value in (float("nan"), float("inf"), float("-inf")):
+        with pytest.raises(ValueError, match="finite"):
+            NormalizedBox(x=value, y=0.1, width=0.2, height=0.2)

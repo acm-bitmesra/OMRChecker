@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import math
 from typing import Mapping, Sequence
 
 
@@ -12,6 +13,9 @@ class NormalizedBox:
     height: float
 
     def __post_init__(self) -> None:
+        values = (self.x, self.y, self.width, self.height)
+        if not all(math.isfinite(value) for value in values):
+            raise ValueError("normalized box values must be finite")
         if not (0.0 <= self.x <= 1.0 and 0.0 <= self.y <= 1.0):
             raise ValueError("x and y must be between 0.0 and 1.0")
         if not (0.0 < self.width <= 1.0 and 0.0 < self.height <= 1.0):
@@ -100,7 +104,7 @@ def apply_inset(box: PixelBox, inset_ratio: float = 0.15) -> PixelBox:
 
 
 def _validate_grayscale_image(image: Sequence[Sequence[int]]) -> tuple[int, int]:
-    if not image:
+    if len(image) == 0:
         raise ValueError("image must contain at least one row")
     height = len(image)
     width = len(image[0])
