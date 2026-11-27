@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { CameraCapture } from "./components/CameraCapture";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
 
@@ -69,6 +70,7 @@ export default function HomePage() {
   const [reviewStudentName, setReviewStudentName] = useState("");
   const [answerKeyText, setAnswerKeyText] = useState("");
   const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [cameraOpen, setCameraOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -382,6 +384,19 @@ export default function HomePage() {
                     <div><label className="field-label" htmlFor="student-id">Student ID / roll number</label><input id="student-id" value={studentId} onChange={(event) => setStudentId(event.target.value)} placeholder="e.g. 2201001" /></div>
                     <div><label className="field-label" htmlFor="student-name">Student name</label><input id="student-name" value={studentName} onChange={(event) => setStudentName(event.target.value)} placeholder="Candidate name" /></div>
                   </div>
+                  <button className="button secondary camera-open-button" type="button" onClick={() => setCameraOpen(true)}>
+                    Open phone camera
+                  </button>
+                  {cameraOpen && (
+                    <CameraCapture
+                      onClose={() => setCameraOpen(false)}
+                      onCapture={(file, warning) => {
+                        setUploadFile(file);
+                        setCameraOpen(false);
+                        setNotice(warning || "Photo captured. Review the selected image before uploading.");
+                      }}
+                    />
+                  )}
                   <label className="upload-zone">
                     <input type="file" accept=".png,.jpg,.jpeg,.pdf,image/png,image/jpeg,application/pdf" onChange={(event) => setUploadFile(event.target.files?.[0] ?? null)} />
                     <span className="upload-icon">↑</span>

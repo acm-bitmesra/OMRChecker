@@ -21,6 +21,7 @@
 - [ ] Implement robust audit events and result revisions.
 - [ ] Add QR/student roster matching and separate candidate identity workflow.
 - [ ] Add XLSX/PDF reports and question-level analytics.
-- [ ] Add PWA camera capture, quality checks, and recapture guidance.
+- [x] Add browser camera capture with rear-camera preference, live preview, image capture, and basic quality hints.
+- [ ] Add automatic page boundary detection, focus scoring, continuous capture, and offline upload queue.
 - [ ] Add containerized API/web/worker deployment and CI build checks.
 - [ ] Complete security, load, and recovery testing before institutional pilots.

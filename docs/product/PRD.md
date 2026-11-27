@@ -18,7 +18,8 @@
 ## Still planned
 - Production authentication and organization tenancy.
 - Student identity bubble recognition / QR roster assignment.
-- Native mobile application and offline capture.
+- Automatic focus, glare, crop detection, continuous capture, and offline camera queue.
+- Native mobile application.
 - Distributed queue and independently autoscaled workers.
 - Cloud object storage, retention automation, rich analytics, XLSX/PDF reporting.
 - Expanded templates, paper sets, and advanced marking policies.
