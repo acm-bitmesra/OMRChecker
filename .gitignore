@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+dist/
+build/
+*.egg-info/
+
+# Node
+node_modules/
+.next/
+out/
+.turbo/
+.pnpm-store/
+
+# Secrets and local data
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+data/
+uploads/
+artifacts/
+coverage/
+.DS_Store
