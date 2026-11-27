@@ -126,6 +126,7 @@ def finalize_scan_if_ready(scan: Scan, exam: Exam) -> None:
         scan.status = "needs_review"
         scan.error_message = "Candidate identity is unresolved. Enter the student's roll number before evaluation."
         return
+    scan.error_message = ""
     if len(approved) != exam.total_questions or not exam.answer_key_json:
         scan.result_json = None
         scan.status = "awaiting_key" if len(approved) == exam.total_questions else "needs_review"

@@ -58,6 +58,7 @@ def test_exam_create_and_answer_key(tmp_path: Path, monkeypatch) -> None:
             total_pages=1,
             status="needs_review",
             approved_answers_json={"1": "A", "2": "D"},
+            error_message="The candidate QR code is unknown or belongs to a different examination.",
         )
         session.add(scan)
         session.flush()
@@ -69,6 +70,7 @@ def test_exam_create_and_answer_key(tmp_path: Path, monkeypatch) -> None:
         scan.student_id = "BIT-2026-001"
         finalize_scan_if_ready(scan, stored_exam)
         assert scan.status == "evaluated"
+        assert scan.error_message == ""
         assert scan.result_json["correct"] == 2
 
     pdf = fitz.open(stream=sheet_response.content, filetype="pdf")
