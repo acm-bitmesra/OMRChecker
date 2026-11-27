@@ -1,6 +1,7 @@
 from io import BytesIO
 
 import cv2
+import qrcode
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
 from reportlab.lib.utils import ImageReader
@@ -52,8 +53,8 @@ def _draw_top_text(pdf: canvas.Canvas, value: str, x_mm: float, y_mm: float) -> 
     pdf.drawString(x_mm * mm, PAGE_H - y_mm * mm, value)
 
 
-def generate_omr_pdf(exam) -> bytes:
-    """Generate one A4 page with up to 100 questions and four-corner ArUco markers."""
+def generate_omr_pdf(exam, sheet_token: str | None = None) -> bytes:
+    """Generate one A4 page with up to 100 questions and optional candidate QR identity."""
     if exam.total_questions > 100:
         raise ValueError("A single OMR sheet supports up to 100 questions")
     if len(exam.options_json) > 4:
@@ -74,6 +75,31 @@ def generate_omr_pdf(exam) -> bytes:
         18,
         37,
     )
+    if sheet_token:
+        qr = qrcode.QRCode(
+            version=None,
+            error_correction=qrcode.constants.ERROR_CORRECT_M,
+            box_size=6,
+            border=2,
+        )
+        qr.add_data(sheet_token)
+        qr.make(fit=True)
+        qr_buffer = BytesIO()
+        qr.make_image(fill_color="black", back_color="white").save(qr_buffer, format="PNG")
+        qr_buffer.seek(0)
+        qr_size_mm = 25.0
+        qr_x_mm, qr_top_mm = 164.0, 5.0
+        pdf.drawImage(
+            ImageReader(qr_buffer),
+            qr_x_mm * mm,
+            PAGE_H - (qr_top_mm + qr_size_mm) * mm,
+            width=qr_size_mm * mm,
+            height=qr_size_mm * mm,
+            mask="auto",
+        )
+        pdf.setFont("Helvetica-Bold", 5.5)
+        _draw_top_text(pdf, "CANDIDATE SHEET ID", 165, 33.5)
+
     _draw_top_text(pdf, "Student name:", 18, 45)
     pdf.line(39 * mm, PAGE_H - 45.8 * mm, 91 * mm, PAGE_H - 45.8 * mm)
     _draw_top_text(pdf, "Roll / student ID:", 112, 45)

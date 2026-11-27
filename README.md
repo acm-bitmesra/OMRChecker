@@ -8,8 +8,9 @@ OMR Checker is an ACM BIT Mesra project. This repository now contains a working 
 
 - Create examinations with 1–100 questions and 2–4 answer options.
 - Configure positive, negative, and blank marking.
-- Generate an A4 OMR PDF with four ArUco registration markers.
-- Upload PNG/JPG images or PDFs (each PDF page is treated as one sheet).
+- Generate generic and candidate-specific A4 OMR PDFs with four ArUco registration markers.
+- Embed an opaque per-candidate QR token in personalized sheets and resolve the candidate automatically during scanning.
+- Upload PNG/JPG images or PDFs (each PDF page is treated as one sheet); mixed-candidate batches can be identified using personalized QR sheets.
 - Align perspective-distorted captures using the registration markers.
 - Measure bubble fill ratios and classify answers as blank, single, multiple, or uncertain.
 - Require human review for ambiguous and multiple marks.
@@ -74,13 +75,14 @@ Open http://localhost:3000.
 ### 4. Create and evaluate an exam
 
 1. Create an exam (up to 100 questions).
-2. Download the generated A4 OMR PDF and print at 100% scale. Do not crop the four registration markers.
-3. Mark bubbles clearly using a dark pen.
-4. Enter one answer per line in the dashboard, such as `1:A`, and save the complete key.
-5. Upload a clear PNG/JPG scan or a PDF containing one filled sheet per page. Enter the candidate ID/name for the upload.
-6. Wait for recognition. Pages with uncertain or multiple marks appear in Manual Review.
-7. Confirm every unresolved answer and save. The score is recalculated.
-8. Export evaluated records as CSV.
+2. Generate a personalized QR sheet for each candidate by entering their roll number and name; the QR contains only an opaque random token.
+3. Print at 100% scale and do not crop the four registration markers.
+4. Mark bubbles clearly using a dark pen.
+5. Enter one answer per line in the dashboard, such as `1:A`, and save the complete key.
+6. Upload a clear PNG/JPG scan or a multipage PDF. Different personalized candidate sheets can be mixed in one PDF.
+7. Wait for recognition. Unknown QR tokens, missing candidate identity, and uncertain or multiple marks appear in Manual Review.
+8. Confirm the candidate ID and every unresolved answer. The score is recalculated only after identity and answers are resolved.
+9. Export evaluated records as CSV.
 
 ## API overview
 
@@ -92,7 +94,8 @@ All endpoints are under `/api/v1`.
 | GET / POST | `/exams` | List / create exams |
 | GET | `/exams/{id}` | Get exam |
 | PUT | `/exams/{id}/answer-key` | Save complete answer key |
-| GET | `/exams/{id}/template.pdf` | Download printable OMR |
+| GET | `/exams/{id}/template.pdf` | Download generic printable OMR |
+| POST | `/exams/{id}/student-sheets` | Generate a QR-linked candidate sheet |
 | POST | `/exams/{id}/scans` | Upload image/PDF |
 | GET | `/exams/{id}/scans` | List scans |
 | GET | `/scans/{id}` | Get one scan |

@@ -138,8 +138,10 @@ def recognize_sheet(image_path: str | Path, total_questions: int, options: list[
             "fill_ratios": ratios,
         }
 
+    sheet_token, _, _ = cv2.QRCodeDetector().detectAndDecode(gray)
     return {
         "questions": questions,
+        "sheet_token": sheet_token or None,
         "engine": "opencv-aruco-fill-ratio-v1",
         "canonical_size": [CANONICAL_WIDTH, CANONICAL_HEIGHT],
     }

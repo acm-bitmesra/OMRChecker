@@ -30,6 +30,18 @@ class Exam(Base):
     )
 
 
+class SheetToken(Base):
+    """Opaque per-candidate identifier embedded in a personalized answer-sheet QR code."""
+
+    __tablename__ = "sheet_tokens"
+
+    token: Mapped[str] = mapped_column(String(64), primary_key=True)
+    exam_id: Mapped[str] = mapped_column(ForeignKey("exams.id", ondelete="CASCADE"), index=True)
+    student_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    student_name: Mapped[str] = mapped_column(String(160), default="", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
 class Scan(Base):
     __tablename__ = "scans"
 

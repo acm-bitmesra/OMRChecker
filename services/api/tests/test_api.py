@@ -2,8 +2,9 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from app.database import Base, engine
+from app.database import Base, SessionLocal, engine
 from app.main import app
+from app.models import SheetToken
 
 
 def test_exam_create_and_answer_key(tmp_path: Path, monkeypatch) -> None:
@@ -29,3 +30,16 @@ def test_exam_create_and_answer_key(tmp_path: Path, monkeypatch) -> None:
     )
     assert key_response.status_code == 200
     assert key_response.json()["exam"]["has_answer_key"] is True
+
+    sheet_response = client.post(
+        f"/api/v1/exams/{exam['id']}/student-sheets",
+        json={"student_id": "BIT-2026-001", "student_name": "Test Candidate"},
+    )
+    assert sheet_response.status_code == 200
+    assert sheet_response.headers["content-type"] == "application/pdf"
+    assert sheet_response.content.startswith(b"%PDF")
+
+    with SessionLocal() as session:
+        token_record = session.query(SheetToken).filter_by(exam_id=exam["id"]).one()
+        assert token_record.student_id == "BIT-2026-001"
+        assert token_record.student_name == "Test Candidate"

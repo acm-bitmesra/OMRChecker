@@ -7,8 +7,9 @@
 ## Current working MVP
 - Create exams with 1–100 questions and 2–4 choices.
 - Configure correct, incorrect, and blank marks.
-- Generate a single-page A4 answer sheet with four ArUco registration markers.
+- Generate a single-page A4 answer sheet with four ArUco registration markers and optional candidate-specific QR identity.
 - Upload PNG/JPG or PDFs of up to 50 pages (each PDF page is an independent sheet).
+- Generate opaque QR tokens mapped to candidate IDs/names and recognize mixed-candidate PDF batches.
 - Align each scan with OpenCV and measure bubble fill.
 - Classify each question as blank, single, multiple, or uncertain.
 - Route multiple/uncertain detections to manual review.

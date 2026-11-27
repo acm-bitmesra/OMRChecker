@@ -29,6 +29,13 @@ class AnswerKeyInput(BaseModel):
 
 class ReviewInput(BaseModel):
     answers: dict[str, str | None]
+    student_id: str | None = Field(default=None, min_length=1, max_length=100)
+    student_name: str | None = Field(default=None, max_length=160)
+
+
+class StudentSheetCreate(BaseModel):
+    student_id: str = Field(min_length=1, max_length=100)
+    student_name: str = Field(default="", max_length=160)
 
 
 class ExamOutput(BaseModel):
