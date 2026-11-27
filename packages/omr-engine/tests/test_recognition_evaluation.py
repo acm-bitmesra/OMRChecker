@@ -69,3 +69,27 @@ def test_evaluate_recognition_batch_rejects_mismatched_sheets_or_questions() -> 
     )
     with pytest.raises(ValueError, match="Missing ground truth"):
         evaluate_recognition_batch([pred], [gt])
+
+
+
+def test_evaluate_recognition_batch_rejects_sheets_without_questions() -> None:
+    empty_prediction = SheetPrediction(sheet_id="sheet-1", questions={})
+    empty_truth = SheetGroundTruth(sheet_id="sheet-1", questions={})
+
+    with pytest.raises(ValueError, match="prediction sheet must contain at least one question"):
+        evaluate_recognition_batch(
+            [empty_prediction],
+            [SheetGroundTruth(
+                sheet_id="sheet-1",
+                questions={1: GroundTruthQuestion(QuestionState.BLANK)},
+            )],
+        )
+
+    with pytest.raises(ValueError, match="ground-truth sheet must contain at least one question"):
+        evaluate_recognition_batch(
+            [SheetPrediction(
+                sheet_id="sheet-1",
+                questions={1: classify_question([("A", 0.05), ("B", 0.05)])},
+            )],
+            [empty_truth],
+        )

@@ -55,6 +55,10 @@ def evaluate_recognition_batch(
         raise ValueError("predictions and ground_truths must not be empty")
     if len(predictions) != len(ground_truths):
         raise ValueError("predictions and ground_truths must have equal length")
+    if any(not prediction.questions for prediction in predictions):
+        raise ValueError("every prediction sheet must contain at least one question")
+    if any(not truth.questions for truth in ground_truths):
+        raise ValueError("every ground-truth sheet must contain at least one question")
 
     truth_by_id = {gt.sheet_id: gt for gt in ground_truths}
     if len(truth_by_id) != len(ground_truths):
