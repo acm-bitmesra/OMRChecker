@@ -18,8 +18,8 @@ class PageDefinition(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     size: str = Field(min_length=1)
-    orientation: Literal["portrait", "landscape"] | str
-    coordinate_system: str = "normalized_top_left"
+    orientation: Literal["portrait", "landscape"]
+    coordinate_system: Literal["normalized_top_left"] = "normalized_top_left"
 
 
 class OMRTemplateHeader(BaseModel):
@@ -42,7 +42,7 @@ class RegistrationMarker(BaseModel):
 class SheetCodeDefinition(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    type: Literal["qr", "barcode"] | str = "qr"
+    type: Literal["qr", "barcode"] = "qr"
     region: NormalizedRegion
 
 

@@ -108,3 +108,16 @@ def test_template_rejects_duplicate_marker_ids_or_coords() -> None:
     payload2["registration_markers"][1]["x"] = 0.04
     with pytest.raises(ValidationError, match="distinct coordinates"):
         OMRTemplate.model_validate(payload2)
+
+
+
+def test_template_rejects_unsupported_orientation_and_sheet_code_type() -> None:
+    payload = _valid_template_payload()
+    payload["page"]["orientation"] = "sideways"
+    with pytest.raises(ValidationError):
+        OMRTemplate.model_validate(payload)
+
+    payload = _valid_template_payload()
+    payload["sheet_code"]["type"] = "pdf417"
+    with pytest.raises(ValidationError):
+        OMRTemplate.model_validate(payload)
