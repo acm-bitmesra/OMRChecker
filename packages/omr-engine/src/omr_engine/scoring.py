@@ -67,6 +67,15 @@ class DetailedScoreSummary:
     section_scores: dict[str, ScoreSummary]
 
 
+@dataclass(slots=True)
+class _SectionAccumulator:
+    correct_count: int = 0
+    incorrect_count: int = 0
+    blank_count: int = 0
+    score: float = 0.0
+    maximum_score: float = 0.0
+
+
 def score_responses(
     responses: Mapping[int, Sequence[str] | None],
     answer_key: Mapping[int, Sequence[str]],
@@ -131,7 +140,7 @@ def evaluate_sheet(
     total_score = 0.0
     total_max = 0.0
     details: list[QuestionScoreDetail] = []
-    section_buckets: dict[str, list[QuestionScoreDetail]] = defaultdict(list)
+    section_buckets: dict[str, _SectionAccumulator] = defaultdict(_SectionAccumulator)
 
     for question_number in sorted(answer_key):
         expected = tuple(answer_key[question_number])
@@ -179,16 +188,24 @@ def evaluate_sheet(
         )
         details.append(detail)
         if cfg.section is not None:
-            section_buckets[cfg.section].append(detail)
+            section = section_buckets[cfg.section]
+            section.score += awarded
+            section.maximum_score += q_max
+            if outcome == QuestionOutcome.CORRECT:
+                section.correct_count += 1
+            elif outcome == QuestionOutcome.INCORRECT:
+                section.incorrect_count += 1
+            elif outcome == QuestionOutcome.BLANK:
+                section.blank_count += 1
 
     section_scores: dict[str, ScoreSummary] = {}
-    for section_name, items in section_buckets.items():
+    for section_name, section in section_buckets.items():
         section_scores[section_name] = ScoreSummary(
-            correct_count=sum(1 for d in items if d.outcome == QuestionOutcome.CORRECT),
-            incorrect_count=sum(1 for d in items if d.outcome == QuestionOutcome.INCORRECT),
-            blank_count=sum(1 for d in items if d.outcome == QuestionOutcome.BLANK),
-            score=round(sum(d.points_awarded for d in items), decimal_places),
-            maximum_score=round(sum(d.max_points for d in items), decimal_places),
+            correct_count=section.correct_count,
+            incorrect_count=section.incorrect_count,
+            blank_count=section.blank_count,
+            score=round(section.score, decimal_places),
+            maximum_score=round(section.maximum_score, decimal_places),
         )
 
     return DetailedScoreSummary(

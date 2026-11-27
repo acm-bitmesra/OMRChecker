@@ -91,3 +91,22 @@ def test_evaluate_sheet_rejects_unknown_question_config() -> None:
             answer_key={1: ["A"]},
             question_configs={99: QuestionScoringConfig()},
         )
+
+
+
+def test_section_totals_round_after_accumulating_raw_fractional_points() -> None:
+    result = evaluate_sheet(
+        responses={1: ["A"], 2: ["A"], 3: ["A"]},
+        answer_key={1: ["A"], 2: ["A"], 3: ["B"]},
+        default_rule=ScoringRule(correct=1 / 3, incorrect=-1 / 6, blank=0.0),
+        question_configs={
+            1: QuestionScoringConfig(section="Algebra"),
+            2: QuestionScoringConfig(section="Algebra"),
+            3: QuestionScoringConfig(section="Algebra"),
+        },
+        decimal_places=2,
+    )
+    algebra = result.section_scores["Algebra"]
+    assert result.score == pytest.approx(0.5)
+    assert algebra.score == result.score
+    assert algebra.maximum_score == result.maximum_score == pytest.approx(1.0)
