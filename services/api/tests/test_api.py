@@ -1,10 +1,12 @@
 from pathlib import Path
 
+import cv2
+import fitz
 from fastapi.testclient import TestClient
 
 from app.database import Base, SessionLocal, engine
-from app.main import app
-from app.models import SheetToken
+from app.main import app, finalize_scan_if_ready
+from app.models import Exam, Scan, SheetToken
 
 
 def test_exam_create_and_answer_key(tmp_path: Path, monkeypatch) -> None:
@@ -43,3 +45,36 @@ def test_exam_create_and_answer_key(tmp_path: Path, monkeypatch) -> None:
         token_record = session.query(SheetToken).filter_by(exam_id=exam["id"]).one()
         assert token_record.student_id == "BIT-2026-001"
         assert token_record.student_name == "Test Candidate"
+        expected_token = token_record.token
+
+        scan = Scan(
+            exam_id=exam["id"],
+            student_id="",
+            student_name="",
+            original_filename="candidate.pdf",
+            source_path="candidate.pdf",
+            image_path="candidate.png",
+            page_number=1,
+            total_pages=1,
+            status="needs_review",
+            approved_answers_json={"1": "A", "2": "D"},
+        )
+        session.add(scan)
+        session.flush()
+        stored_exam = session.get(Exam, exam["id"])
+        finalize_scan_if_ready(scan, stored_exam)
+        assert scan.status == "needs_review"
+        assert scan.result_json is None
+
+        scan.student_id = "BIT-2026-001"
+        finalize_scan_if_ready(scan, stored_exam)
+        assert scan.status == "evaluated"
+        assert scan.result_json["correct"] == 2
+
+    pdf = fitz.open(stream=sheet_response.content, filetype="pdf")
+    image_path = tmp_path / "candidate-sheet.png"
+    pdf[0].get_pixmap(dpi=200, alpha=False).save(image_path)
+    image = cv2.imread(str(image_path), cv2.IMREAD_GRAYSCALE)
+    decoded, points, _ = cv2.QRCodeDetector().detectAndDecode(image)
+    assert points is not None
+    assert decoded == expected_token

@@ -252,6 +252,10 @@ export default function HomePage() {
 
   async function saveReview() {
     if (!selectedScan || !selectedExam) return;
+    if (!reviewStudentId.trim()) {
+      setError("Enter the candidate's student ID before finalizing this result.");
+      return;
+    }
     const answers: Record<string, string | null> = {};
     for (let q = 1; q <= selectedExam.total_questions; q += 1) {
       const value = reviewValues[String(q)] ?? "__review__";
