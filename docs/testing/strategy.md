@@ -1,37 +1,20 @@
 # Testing strategy
 
-## Test layers
+## Automated tests
+- Unit tests for bubble and question classification.
+- Unit tests for deterministic scoring and unresolved answer handling.
+- PDF generation and A4 page dimensions.
+- Synthetic blank-sheet round trip: generate PDF, rasterize at 200 DPI, detect ArUco markers, align, and verify blank responses.
+- FastAPI smoke test for exam creation and answer-key persistence.
 
-### Unit tests
-- Bubble fill ratio and edge cases.
-- Blank / single / multiple / uncertain classification.
-- Template bounds and overlap validation.
-- Coordinate transforms.
-- Scoring rules, rounding, dropped and bonus questions.
-- Idempotency and state transitions.
+## Golden dataset before real use
 
-### Integration tests
-- API authorization and tenant isolation.
-- Upload validation and object metadata.
-- Queue publication and retry behavior.
-- Database transaction boundaries.
-- Result revision and audit events.
-- Export generation.
-
-### Golden dataset
-
-Maintain an access-controlled dataset with ground-truth labels and permission to use the scans. Include scanner images at multiple resolutions; phone perspective, rotation, shadows, glare; different printers/photocopies; pen, pencil, light and erased marks; blank, single, multiple, ambiguous; damaged, cropped, and blurred pages; invalid/mismatched template IDs.
-
-Never commit real student records or unredacted scans. Use synthetic or consented de-identified samples.
+Build an access-controlled labeled dataset with scanner and phone captures, perspective distortion, rotation, uneven lighting, different printers and photocopies, pen/pencil marks, erasures, blanks, multiple marks, and low-quality pages. Use synthetic or consented de-identified samples only.
 
 ## Metrics
 
-Report per-bubble precision/recall, per-question exact match, full-sheet exact match, false acceptance of uncertain marks, manual review rate, recapture rate, and throughput. Segment by template version and capture path.
-
-## Acceptance
-
-Every test scan has ground truth and expected page outcome. Changes to preprocessing/thresholds require golden-set evaluation. Published results must not silently change after engine updates. Benchmarks record hardware, resolution, and batch size.
+Report per-bubble precision/recall, per-question exact match, full-sheet exact match, false acceptance of ambiguous marks, manual review rate, recapture rate, and throughput. Segment by template version and capture path.
 
 ## CI
 
-Run formatting/linting and unit tests on every PR. Add integration and golden-dataset jobs as implementations and licensed fixtures become available.
+Run engine, template, and API tests for every pull request. Recognition threshold changes require a golden-dataset report. Never silently change a finalized result after an engine update.

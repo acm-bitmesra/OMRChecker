@@ -1,12 +1,5 @@
-# Background worker
+# Optional distributed worker
 
-Celery workers run CPU-heavy recognition and report-generation jobs outside HTTP handlers.
+The first working MVP uses FastAPI background tasks to keep local setup simple. This Celery/Redis scaffold is reserved for a production queue migration when retry semantics, higher volume, or independent worker autoscaling are implemented.
 
-## Run locally
-
-```bash
-pip install -e .
-celery -A app.celery_app.celery_app worker --loglevel=INFO
-```
-
-Only Celery app wiring and a connectivity task are scaffolded. Add idempotent page-processing tasks alongside the API job lifecycle.
+Do not switch the API to Celery until task payloads are idempotent, tenant authorization is rechecked by workers, and retry/dead-letter behavior is tested.
