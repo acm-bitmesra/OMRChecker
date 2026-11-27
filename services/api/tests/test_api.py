@@ -5,8 +5,13 @@ import fitz
 from fastapi.testclient import TestClient
 
 from app.database import Base, SessionLocal, engine
+import pytest
+from pydantic import ValidationError
+
 from app.main import app, finalize_scan_if_ready
 from app.models import Exam, Scan, SheetToken
+from app.schemas import ReviewInput, StudentSheetCreate
+from app.services.processing import resolve_scan_identity
 
 
 def test_exam_create_and_answer_key(tmp_path: Path, monkeypatch) -> None:
@@ -80,3 +85,43 @@ def test_exam_create_and_answer_key(tmp_path: Path, monkeypatch) -> None:
     decoded, points, _ = cv2.QRCodeDetector().detectAndDecode(image)
     assert points is not None
     assert decoded == expected_token
+
+
+
+def test_candidate_sheet_and_review_ids_reject_whitespace_only_values() -> None:
+    with pytest.raises(ValidationError):
+        StudentSheetCreate(student_id="   ")
+    with pytest.raises(ValidationError):
+        ReviewInput(answers={}, student_id="   ")
+
+
+def test_worker_rejects_token_record_with_blank_candidate_id() -> None:
+    scan = type("ScanStub", (), {"student_id": "", "student_name": ""})()
+    token_record = type(
+        "TokenStub",
+        (),
+        {"exam_id": "exam-1", "student_id": "   ", "student_name": "Nobody"},
+    )()
+    reason = resolve_scan_identity(scan, token_record, "exam-1", "opaque-token")
+    assert "blank student ID" in reason
+    assert scan.student_id == ""
+
+
+def test_worker_rejects_candidate_token_from_another_exam() -> None:
+    scan = type("ScanStub", (), {"student_id": "", "student_name": ""})()
+    token_record = type(
+        "TokenStub",
+        (),
+        {"exam_id": "exam-other", "student_id": "BIT-001", "student_name": "Candidate"},
+    )()
+    reason = resolve_scan_identity(scan, token_record, "exam-1", "opaque-token")
+    assert "different examination" in reason
+    assert scan.student_id == ""
+
+
+def test_worker_normalizes_valid_candidate_identity() -> None:
+    scan = type("ScanStub", (), {"student_id": "  MANUAL-01  ", "student_name": "  Name  "})()
+    reason = resolve_scan_identity(scan, None, "exam-1", None)
+    assert reason == ""
+    assert scan.student_id == "MANUAL-01"
+    assert scan.student_name == "Name"
