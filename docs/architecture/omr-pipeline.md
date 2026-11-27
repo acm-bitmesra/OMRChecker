@@ -7,10 +7,11 @@
 3. Detect all four ArUco registration markers (IDs 0–3).
 4. Estimate a perspective transform and warp to canonical A4 dimensions.
 5. Compute per-bubble interior dark-pixel ratio relative to nearby paper brightness.
-6. Classify each option and then each question as blank, single, multiple, or uncertain.
-7. Store per-option fill ratios and engine version.
-8. Auto-approve only blank and single detections; route multiple and uncertain responses to review.
-9. Apply marking rules only after every question has an approved response.
+6. Decode the optional opaque candidate QR token and resolve it against the selected exam's token registry.
+7. Classify each option and then each question as blank, single, multiple, or uncertain.
+8. Store per-option fill ratios, QR token (if present), and engine version.
+9. Route unknown/mismatched QR tokens, missing candidate identity, multiple marks, and uncertain responses to review.
+10. Apply marking rules only after candidate identity and every question response are approved.
 
 ## Geometry and template
 

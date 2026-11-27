@@ -63,6 +63,10 @@ export default function HomePage() {
   const [questionCount, setQuestionCount] = useState(50);
   const [studentId, setStudentId] = useState("");
   const [studentName, setStudentName] = useState("");
+  const [sheetStudentId, setSheetStudentId] = useState("");
+  const [sheetStudentName, setSheetStudentName] = useState("");
+  const [reviewStudentId, setReviewStudentId] = useState("");
+  const [reviewStudentName, setReviewStudentName] = useState("");
   const [answerKeyText, setAnswerKeyText] = useState("");
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
@@ -159,7 +163,11 @@ export default function HomePage() {
       await api(`/exams/${selectedExam.id}/answer-key`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ answers }),
+        body: JSON.stringify({
+          answers,
+          student_id: reviewStudentId.trim(),
+          student_name: reviewStudentName.trim(),
+        }),
       });
       await loadExams();
       await loadScans(selectedExam.id);
@@ -197,9 +205,45 @@ export default function HomePage() {
     }
   }
 
+  async function downloadStudentSheet() {
+    if (!selectedExam || !sheetStudentId.trim()) {
+      setError("Enter a student ID before creating a personalized sheet.");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      const response = await fetch(`${API}/exams/${selectedExam.id}/student-sheets`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ student_id: sheetStudentId.trim(), student_name: sheetStudentName.trim() }),
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        throw new Error(body?.detail ?? `Request failed (${response.status})`);
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `omr-${sheetStudentId.trim().replace(/[^a-zA-Z0-9_-]/g, "-")}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setNotice("Personalized QR answer sheet generated. The scanned page will be matched to this candidate.");
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function openReview(scan: Scan) {
     try {
       const detail = await api<Scan>(`/scans/${scan.id}`);
+      setReviewStudentId(detail.student_id ?? "");
+      setReviewStudentName(detail.student_name ?? "");
       setSelectedScan(detail);
     } catch (err) {
       setError((err as Error).message);
@@ -208,6 +252,10 @@ export default function HomePage() {
 
   async function saveReview() {
     if (!selectedScan || !selectedExam) return;
+    if (!reviewStudentId.trim()) {
+      setError("Enter the candidate's student ID before finalizing this result.");
+      return;
+    }
     const answers: Record<string, string | null> = {};
     for (let q = 1; q <= selectedExam.total_questions; q += 1) {
       const value = reviewValues[String(q)] ?? "__review__";
@@ -289,7 +337,16 @@ export default function HomePage() {
               <div className="mini-stat"><span>Questions</span><strong>{selectedExam.total_questions}</strong></div>
               <div className="mini-stat"><span>Options</span><strong>{selectedExam.options.join(" · ")}</strong></div>
               <div className="mini-stat"><span>Marking</span><strong>+{selectedExam.correct_marks} / {selectedExam.incorrect_marks} / {selectedExam.blank_marks}</strong></div>
-              <button className="button secondary full" onClick={downloadTemplate}>↓ Download OMR sheet</button>
+              <button className="button secondary full" onClick={downloadTemplate}>↓ Download generic OMR sheet</button>
+              <div className="personal-sheet">
+                <div className="section-label">PERSONALIZED SHEET</div>
+                <label className="field-label" htmlFor="sheet-student-id">Student ID / roll number</label>
+                <input id="sheet-student-id" value={sheetStudentId} onChange={(event) => setSheetStudentId(event.target.value)} placeholder="e.g. BIT-2026-001" />
+                <label className="field-label" htmlFor="sheet-student-name">Student name</label>
+                <input id="sheet-student-name" value={sheetStudentName} onChange={(event) => setSheetStudentName(event.target.value)} placeholder="Candidate name" />
+                <button className="button secondary full" onClick={downloadStudentSheet} disabled={busy || !sheetStudentId.trim()}>↓ Generate QR answer sheet</button>
+                <p className="helper">Each PDF contains an opaque QR token linked to this candidate. Mixed-student PDF batches can be scanned together.</p>
+              </div>
               <a className="export-link" href={`${API}/exams/${selectedExam.id}/results.csv`} target="_blank" rel="noreferrer">Export evaluated results ↗</a>
             </div>
           )}
@@ -360,6 +417,10 @@ export default function HomePage() {
                   <div className="card-head"><div><div className="section-label">MANUAL REVIEW</div><h3>Confirm detected responses</h3></div><button className="button ghost" onClick={() => setSelectedScan(null)}>Close ×</button></div>
                   <p className="helper">Clear single marks and blanks are prefilled. Resolve every item marked “Choose…” before saving.</p>
                   {selectedScan.error_message && <div className="alert error">{selectedScan.error_message}</div>}
+                  <div className="form-grid">
+                    <div><label className="field-label" htmlFor="review-student-id">Student ID / roll number</label><input id="review-student-id" value={reviewStudentId} onChange={(event) => setReviewStudentId(event.target.value)} placeholder="Required to finalize result" /></div>
+                    <div><label className="field-label" htmlFor="review-student-name">Student name</label><input id="review-student-name" value={reviewStudentName} onChange={(event) => setReviewStudentName(event.target.value)} placeholder="Candidate name" /></div>
+                  </div>
                   <div className="review-grid">
                     {Array.from({ length: selectedExam.total_questions }, (_, index) => {
                       const q = String(index + 1);

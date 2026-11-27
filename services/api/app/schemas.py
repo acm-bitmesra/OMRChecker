@@ -29,6 +29,31 @@ class AnswerKeyInput(BaseModel):
 
 class ReviewInput(BaseModel):
     answers: dict[str, str | None]
+    student_id: str | None = Field(default=None, max_length=100)
+    student_name: str | None = Field(default=None, max_length=160)
+
+    @field_validator("student_id")
+    @classmethod
+    def normalize_review_student_id(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("Student ID cannot be blank")
+        return normalized
+
+
+class StudentSheetCreate(BaseModel):
+    student_id: str = Field(min_length=1, max_length=100)
+    student_name: str = Field(default="", max_length=160)
+
+    @field_validator("student_id")
+    @classmethod
+    def normalize_student_id(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("Student ID cannot be blank")
+        return normalized
 
 
 class ExamOutput(BaseModel):

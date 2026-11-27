@@ -15,8 +15,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.database import Base, SessionLocal, engine, ensure_local_storage
-from app.models import Exam, Scan
-from app.schemas import AnswerKeyInput, ExamCreate, ReviewInput
+from app.models import Exam, Scan, SheetToken
+from app.schemas import AnswerKeyInput, ExamCreate, ReviewInput, StudentSheetCreate
 from app.services.evaluation import evaluate_answers
 from app.services.processing import process_scan_record
 from app.services.template import generate_omr_pdf
@@ -121,6 +121,12 @@ def validate_answer_key(exam: Exam, answers: dict[str, str]) -> dict[str, str]:
 
 def finalize_scan_if_ready(scan: Scan, exam: Exam) -> None:
     approved = scan.approved_answers_json or {}
+    if not scan.student_id.strip():
+        scan.result_json = None
+        scan.status = "needs_review"
+        scan.error_message = "Candidate identity is unresolved. Enter the student's roll number before evaluation."
+        return
+    scan.error_message = ""
     if len(approved) != exam.total_questions or not exam.answer_key_json:
         scan.result_json = None
         scan.status = "awaiting_key" if len(approved) == exam.total_questions else "needs_review"
@@ -210,6 +216,36 @@ def download_template(exam_id: str, db: Session = Depends(get_db)) -> Response:
         content=pdf_bytes,
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@app.post(f"{API_PREFIX}/exams/{{exam_id}}/student-sheets", tags=["templates"])
+def create_student_sheet(
+    exam_id: str,
+    payload: StudentSheetCreate,
+    db: Session = Depends(get_db),
+) -> Response:
+    """Generate a candidate-specific PDF and persist its opaque QR-token mapping."""
+    exam = get_exam_or_404(db, exam_id)
+    token = uuid.uuid4().hex
+    try:
+        pdf_bytes = generate_omr_pdf(exam, sheet_token=token)
+    except (RuntimeError, ValueError) as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    db.add(
+        SheetToken(
+            token=token,
+            exam_id=exam_id,
+            student_id=payload.student_id.strip(),
+            student_name=payload.student_name.strip(),
+        )
+    )
+    db.commit()
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="omr-candidate-{token[:8]}.pdf"'},
     )
 
 
@@ -313,6 +349,11 @@ def review_scan(
     if scan is None:
         raise HTTPException(status_code=404, detail="Scan not found")
     exam = get_exam_or_404(db, scan.exam_id)
+
+    if payload.student_id is not None:
+        scan.student_id = payload.student_id.strip()
+    if payload.student_name is not None:
+        scan.student_name = payload.student_name.strip()
 
     approved = dict(scan.approved_answers_json or {})
     for question_number, answer in payload.answers.items():

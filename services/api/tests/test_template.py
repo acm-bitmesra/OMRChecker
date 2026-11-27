@@ -1,5 +1,7 @@
+from pathlib import Path
 from types import SimpleNamespace
 
+import cv2
 import fitz
 
 from app.services.template import generate_omr_pdf
@@ -31,3 +33,19 @@ def test_option_legend_is_printed_once_per_column_not_inside_each_bubble() -> No
     # The old implementation printed these letters inside every bubble.
     assert len(labels) == 8
     assert all(word[1] < 153 for word in labels)
+
+
+def test_personalized_sheet_embeds_decodable_opaque_qr_token(tmp_path: Path) -> None:
+    token = "a" * 32
+    document = fitz.open(
+        stream=generate_omr_pdf(make_exam(total_questions=8), sheet_token=token),
+        filetype="pdf",
+    )
+    image_path = tmp_path / "personalized.png"
+    document[0].get_pixmap(dpi=200, alpha=False).save(image_path)
+
+    image = cv2.imread(str(image_path), cv2.IMREAD_GRAYSCALE)
+    decoded, points, _ = cv2.QRCodeDetector().detectAndDecode(image)
+
+    assert points is not None
+    assert decoded == token

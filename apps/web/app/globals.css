@@ -121,3 +121,14 @@ code { padding: 2px 5px; border-radius: 4px; background: #edf3ee; color: var(--g
   .form-footer, .result-banner { align-items: flex-start; flex-direction: column; }
   .form-footer .button { width: 100%; }
 }
+
+
+.personal-sheet {
+  margin-top: 19px;
+  padding: 13px;
+  border: 1px solid #e2eae2;
+  border-radius: 10px;
+  background: #fbfdfb;
+}
+.personal-sheet .section-label { margin-bottom: 4px; }
+.personal-sheet .helper { margin-bottom: 0; }

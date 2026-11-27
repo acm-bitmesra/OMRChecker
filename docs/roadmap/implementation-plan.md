@@ -10,6 +10,7 @@
 - [x] Blank/single/multiple/uncertain question classification.
 - [x] Deterministic scoring and manual review.
 - [x] PNG/JPG and multipage PDF ingestion.
+- [x] Candidate-specific QR sheets and per-page candidate identity resolution.
 - [x] Unit and integration smoke tests.
 
 ## Next: production hardening
