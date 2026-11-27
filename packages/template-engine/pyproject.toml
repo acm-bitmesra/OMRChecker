@@ -1,0 +1,13 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "omr-template-engine"
+version = "0.1.0"
+description = "Versioned OMR template schema and generation"
+requires-python = ">=3.12"
+dependencies = ["pydantic>=2.8"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
