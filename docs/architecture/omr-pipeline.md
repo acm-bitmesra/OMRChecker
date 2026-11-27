@@ -1,41 +1,29 @@
 # OMR recognition pipeline
 
-## Stages
+## Implemented path
 
-1. **Ingest:** validate extension, MIME signature, byte size, image dimensions, PDF page count, and checksum.
-2. **Decode:** rasterize PDF pages at configured resolution; retain original bytes.
-3. **Quality assessment:** detect blur, glare, low contrast, clipping, and extreme skew.
-4. **Locate sheet:** detect printed registration marks and verify geometry.
-5. **Align:** estimate page transform and warp into the template's canonical coordinate plane.
-6. **Normalize:** grayscale, denoise conservatively, and compensate for uneven illumination.
-7. **Locate fields:** resolve question and option regions from the exact immutable template version.
-8. **Measure marks:** compute fill metrics inside bubble interiors, excluding printed outlines.
-9. **Classify:** blank, single, multiple, or uncertain; retain per-option measurements and algorithm version.
-10. **Resolve identity:** decode sheet ID and configured student identifier; route unresolved identity to review.
-11. **Evaluate:** compare examiner-approved responses with answer-key and marking-rule versions.
-12. **Persist:** store status, detections, evaluation, and provenance.
+1. Validate PNG/JPG/PDF extension, signature, upload size, and PDF page count.
+2. Decode raster images; rasterize PDF pages with PyMuPDF at 200 DPI.
+3. Detect all four ArUco registration markers (IDs 0–3).
+4. Estimate a perspective transform and warp to canonical A4 dimensions.
+5. Compute per-bubble interior dark-pixel ratio relative to nearby paper brightness.
+6. Classify each option and then each question as blank, single, multiple, or uncertain.
+7. Store per-option fill ratios and engine version.
+8. Auto-approve only blank and single detections; route multiple and uncertain responses to review.
+9. Apply marking rules only after every question has an approved response.
 
-## Geometry
+## Geometry and template
 
-Template coordinates are normalized to the canonical page, measured from the top-left. Width and height are fractions of page dimensions. All measurements are mapped onto the aligned page, never directly onto the raw camera frame.
+The canonical page is A4 portrait. Bubble positions are shared by the PDF generator and recognition service through `bubble_center_mm`. Template markers use the OpenCV ArUco DICT_4X4_50 dictionary. Marker IDs identify their page corners, so a rotated camera frame can still be rectified.
 
-## Bubble measurement
+## Measurement
 
-A basic measurement is:
+For each option, the engine measures dark pixels inside an inset circle and estimates local paper brightness in a surrounding annulus:
 
-`fill_ratio = dark_pixel_count / sampled_pixel_count`
+`fill_ratio = dark_pixels_inside / sampled_interior_pixels`
 
-Use an inset measurement region to avoid counting the printed bubble outline. Thresholds must be calibrated per supported template/print profile using labeled samples. Local/adaptive measurements may be needed for uneven illumination.
+The default blank and filled thresholds in code are provisional. The intermediate band is deliberately uncertain. Calibration is required for supported printer/pen/camera combinations.
 
-## Question classifications
+## Safety behavior
 
-- **blank:** no option exceeds the calibrated mark threshold.
-- **single:** exactly one option crosses the threshold confidently.
-- **multiple:** more than one option crosses the threshold.
-- **uncertain:** quality checks fail, measurements fall in an ambiguity band, or required geometry/identity is unreliable.
-
-Never convert uncertain to blank or single by default. A page that cannot be aligned must not be evaluated using guessed coordinates.
-
-## Versioned evidence
-
-Persist file checksum/object key, page number, sheet ID, template version, engine/preprocessing version, quality metrics, per-option measurements, classification, review corrections, answer-key version, and scoring-rule version.
+A scan missing any registration marker fails recognition instead of using guessed coordinates. Multiple and uncertain marks do not receive an automatic score. Reprocessing/version history, confidence calibration, and a visual original/overlay review are production-hardening items.
