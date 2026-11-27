@@ -139,7 +139,7 @@ def measure_bubble_fill(
     for y in range(sampled.top, sampled.bottom):
         row = image[y]
         for x in range(sampled.left, sampled.right):
-            pixel = row[x]
+            pixel = int(row[x])
             if not 0 <= pixel <= 255:
                 raise ValueError(f"pixel intensity {pixel} out of range [0, 255]")
             intensity_sum += pixel
