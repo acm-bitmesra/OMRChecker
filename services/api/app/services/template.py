@@ -1,7 +1,6 @@
 from io import BytesIO
 
 import cv2
-import numpy as np
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
 from reportlab.lib.utils import ImageReader
@@ -82,9 +81,16 @@ def generate_omr_pdf(exam) -> bytes:
 
     pdf.setFont("Helvetica-Bold", 7)
     _draw_top_text(pdf, "QUESTION", 18, 51)
-    _draw_top_text(pdf, "OPTIONS", 37, 51)
     _draw_top_text(pdf, "QUESTION", 112, 51)
-    _draw_top_text(pdf, "OPTIONS", 131, 51)
+
+    option_labels = exam.options_json
+    # Print each option label once, above its column of bubbles. The bubble
+    # interiors must contain no printed glyphs because recognition samples them.
+    pdf.setFont("Helvetica-Bold", 6.8)
+    for column_start in COLUMN_STARTS_MM:
+        for option_index, option in enumerate(option_labels):
+            option_x = column_start + OPTION_OFFSET_MM + option_index * OPTION_STEP_MM
+            _draw_top_text(pdf, option, option_x - 0.7, 52.0)
 
     for marker_id, (center_x, center_y) in MARKER_CENTERS.items():
         marker = ImageReader(_marker_image(marker_id))
@@ -97,7 +103,6 @@ def generate_omr_pdf(exam) -> bytes:
             mask="auto",
         )
 
-    option_labels = exam.options_json
     pdf.setLineWidth(0.6)
     pdf.setFont("Helvetica", 6.8)
     for question_number in range(1, exam.total_questions + 1):
@@ -106,10 +111,10 @@ def generate_omr_pdf(exam) -> bytes:
         base_x = COLUMN_STARTS_MM[column]
         y = ROW_START_MM + row * ROW_STEP_MM
         _draw_top_text(pdf, str(question_number), base_x, y + 1.1)
-        for option_index, option in enumerate(option_labels):
+        for option_index, _option in enumerate(option_labels):
             x, bubble_y = bubble_center_mm(question_number, option_index)
+            # Keep the sampled bubble interior free of labels, guide text, and marks.
             pdf.circle(x * mm, PAGE_H - bubble_y * mm, BUBBLE_RADIUS_MM * mm, stroke=1, fill=0)
-            _draw_top_text(pdf, option, x - 1.0, bubble_y + 0.8)
 
     pdf.setFont("Helvetica", 7)
     _draw_top_text(pdf, f"Template: OMR-A4-100  |  Exam ID: {exam.id}", 18, 282)
