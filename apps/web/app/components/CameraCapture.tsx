@@ -104,14 +104,22 @@ export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
         qualityNotes.push("This camera frame is relatively small; move closer or use a scanner if bubble edges look soft.");
       }
 
-      // Sample brightness sparsely to avoid an expensive full-resolution pass.
-      const sample = context.getImageData(0, 0, width, height);
-      const stride = Math.max(1, Math.floor(Math.min(width, height) / 300));
+      // Downsample before brightness sampling so large phone-camera frames do not
+      // require a second full-resolution ImageData allocation.
+      const sampleWidth = Math.min(300, width);
+      const sampleHeight = Math.max(1, Math.round((height * sampleWidth) / width));
+      const sampleCanvas = document.createElement("canvas");
+      sampleCanvas.width = sampleWidth;
+      sampleCanvas.height = sampleHeight;
+      const sampleContext = sampleCanvas.getContext("2d");
+      if (!sampleContext) throw new Error("Could not inspect the captured image.");
+      sampleContext.drawImage(canvas, 0, 0, sampleWidth, sampleHeight);
+      const sample = sampleContext.getImageData(0, 0, sampleWidth, sampleHeight);
       let luminanceTotal = 0;
       let sampleCount = 0;
-      for (let y = 0; y < height; y += stride) {
-        for (let x = 0; x < width; x += stride) {
-          const index = (y * width + x) * 4;
+      for (let y = 0; y < sampleHeight; y += 1) {
+        for (let x = 0; x < sampleWidth; x += 1) {
+          const index = (y * sampleWidth + x) * 4;
           const luminance =
             0.2126 * sample.data[index] +
             0.7152 * sample.data[index + 1] +
