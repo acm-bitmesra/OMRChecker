@@ -1,12 +1,12 @@
-name: OMR engine CI
+name: OMR Checker CI
 
 on:
   push:
-    branches: [main, "docs/**", "feat/**", "fix/**"]
+    branches: [main, "feat/**", "fix/**", "docs/**"]
   pull_request:
 
 jobs:
-  omr-engine:
+  python:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -14,24 +14,34 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: packages/omr-engine/pyproject.toml
-      - name: Install package and test dependencies
-        run: pip install -e ".[dev]"
-        working-directory: packages/omr-engine
-      - name: Run tests
-        run: pytest
-        working-directory: packages/omr-engine
+      - name: Install project dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Run engine, template, and API tests
+        env:
+          DATABASE_URL: sqlite:///./ci_omr_checker.db
+          OMR_STORAGE_DIR: ./ci-data
+        run: |
+          pytest packages/omr-engine/tests packages/template-engine/tests services/api/tests -q
 
-  template-engine:
+  web:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-node@v4
         with:
-          python-version: "3.12"
-      - name: Install package and test dependencies
-        run: pip install -e . pytest
-        working-directory: packages/template-engine
-      - name: Run tests
-        run: pytest
-        working-directory: packages/template-engine
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/web/package.json
+      - name: Install dependencies
+        run: npm install
+      - name: Type check
+        run: npx tsc --noEmit
+      - name: Build web app
+        env:
+          NEXT_TELEMETRY_DISABLED: 1
+        run: npm run build

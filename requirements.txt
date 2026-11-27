@@ -1,0 +1,6 @@
+-e ./packages/omr-engine
+-e ./packages/template-engine
+-e ./services/api
+-e ./services/worker
+pytest>=8.0
+httpx>=0.27
