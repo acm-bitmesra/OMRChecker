@@ -8,14 +8,15 @@
 - Validate orientation, page size, cropping, and page count.
 - Keep source bytes unchanged.
 
-### Phone camera (PWA first)
-- Request camera permission after a user gesture.
-- Show live preview and alignment guide.
-- Detect page boundary and perspective; allow manual correction.
-- Warn about blur, glare, shadow, clipped corners, and low resolution.
-- Offer recapture before upload.
-- Use retryable uploads for poor connectivity.
-- Add continuous capture only after single-page capture is reliable.
+### Phone camera (browser capture implemented)
+- Open the camera from the scan form after an explicit user gesture.
+- Prefer the environment-facing camera, request a high-resolution preview, and provide a visible page guide.
+- Capture one JPEG frame and hand it to the same upload/evaluation pipeline as a scanner image.
+- Provide basic frame-size and average-brightness guidance; the operator must still inspect the entire page and all four registration markers.
+- Stop camera tracks when the capture panel closes or unmounts.
+- Browser camera access requires a secure context (HTTPS or localhost) and user permission.
+- This workflow does not yet detect page boundaries, measure focus, correct perspective in the browser, or work offline. Server-side OMR alignment remains authoritative.
+- Continuous capture and retryable offline uploads remain future work.
 
 ## Capture flow
 1. User selects exam and scan batch.

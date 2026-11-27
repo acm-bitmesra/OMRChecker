@@ -10,7 +10,7 @@ OMR Checker is an ACM BIT Mesra project. This repository now contains a working 
 - Configure positive, negative, and blank marking.
 - Generate generic and candidate-specific A4 OMR PDFs with four ArUco registration markers.
 - Embed an opaque per-candidate QR token in personalized sheets and resolve the candidate automatically during scanning.
-- Upload PNG/JPG images or PDFs (each PDF page is treated as one sheet); mixed-candidate batches can be identified using personalized QR sheets.
+- Capture a page from the browser camera on supported phones or upload PNG/JPG/PDF scans; mixed-candidate batches can be identified using personalized QR sheets.
 - Align perspective-distorted captures using the registration markers.
 - Measure bubble fill ratios and classify answers as blank, single, multiple, or uncertain.
 - Require human review for ambiguous and multiple marks.
@@ -110,7 +110,8 @@ Interactive OpenAPI documentation is available at `/docs`.
 - Recognition thresholds are initial defaults. Validate and calibrate them with printed samples from supported printers, pens/pencils, scanners, and phone cameras before real exam use.
 - The sheet generator currently supports one A4 page with up to 100 questions and up to four options.
 - For a multipage PDF, every page is treated as an independent OMR sheet. The candidate ID/name supplied at upload applies to every page in that PDF.
-- The current web/API MVP is single-operator and does not yet include production authentication, institution tenancy, S3 storage, offline mobile capture, or a distributed queue.
+- Browser camera capture requires HTTPS (or localhost) and camera permission. It provides basic resolution/brightness feedback but does not guarantee focus or page alignment; the server remains the recognition authority.
+- The current web/API MVP is single-operator and does not yet include production authentication, institution tenancy, S3 storage, offline camera capture, or a distributed queue.
 - The local SQLite database and upload directory are for development. Deploy with managed PostgreSQL, private object storage, authentication, retention controls, TLS, backups, and isolated workers before handling real student records.
 - Never automatically accept uncertain detections. Human review is intentional.
 
