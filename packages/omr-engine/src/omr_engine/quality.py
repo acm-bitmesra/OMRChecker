@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import math
 from enum import StrEnum
 from typing import Mapping, Sequence
 
@@ -28,6 +29,8 @@ class QualityReport:
     dark_clip_ratio: float
     skew_degrees: float
     issues: tuple[QualityIssue, ...]
+    sample_stride: int
+    samples_used: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,19 +55,37 @@ def assess_page_quality(
     glare_threshold: int = 250,
     max_dark_clip_ratio: float = 0.75,
     dark_clip_threshold: int = 15,
+    max_sample_pixels: int = 100_000,
 ) -> QualityReport:
-    """Evaluate grayscale sheet quality before accepting mark classifications."""
-    if not image or not image[0]:
+    """Evaluate page quality using a deterministic, bounded grid sample.
+
+    Sampling the page at a regular stride avoids materializing and sorting millions
+    of Python pixel objects for full-resolution phone-camera or scanner images.
+    The same input and sample limit always produce the same report.
+    """
+    if len(image) == 0 or len(image[0]) == 0:
         raise ValueError("image must be non-empty")
+    if max_sample_pixels < 1:
+        raise ValueError("max_sample_pixels must be positive")
+
+    height = len(image)
     width = len(image[0])
+    stride = max(1, math.ceil(math.sqrt((width * height) / max_sample_pixels)))
+
     pixels: list[int] = []
-    for row in image:
+    for y, row in enumerate(image):
         if len(row) != width:
             raise ValueError("image rows must all have equal width")
-        for pixel in row:
+        if y % stride != 0:
+            continue
+        for x in range(0, width, stride):
+            pixel = int(row[x])
             if not 0 <= pixel <= 255:
                 raise ValueError(f"pixel intensity {pixel} out of range [0, 255]")
             pixels.append(pixel)
+
+    if not pixels:
+        raise ValueError("image sample is empty")
 
     pixels.sort()
     n = len(pixels)
@@ -96,6 +117,8 @@ def assess_page_quality(
         dark_clip_ratio=dark_clip_ratio,
         skew_degrees=skew_degrees,
         issues=tuple(issues),
+        sample_stride=stride,
+        samples_used=n,
     )
 
 

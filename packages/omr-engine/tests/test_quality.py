@@ -1,3 +1,4 @@
+import numpy as np
 import pytest
 
 from omr_engine.classification import QuestionState
@@ -76,3 +77,20 @@ def test_empty_measurements_raises() -> None:
     good_quality = assess_page_quality(_good_sheet())
     with pytest.raises(ValueError):
         classify_sheet_questions({}, good_quality)
+
+
+
+def test_quality_assessment_accepts_numpy_arrays_and_uses_bounded_sampling() -> None:
+    image = np.full((1000, 1000), 240, dtype=np.uint8)
+    report = assess_page_quality(image, max_sample_pixels=10_000)
+    assert report.samples_used <= 10_000
+    assert report.sample_stride >= 1
+    assert report.contrast_span == 0
+
+    with pytest.raises(ValueError, match="image must be non-empty"):
+        assess_page_quality(np.empty((0, 100), dtype=np.uint8))
+
+
+def test_quality_assessment_rejects_invalid_sample_limit() -> None:
+    with pytest.raises(ValueError, match="max_sample_pixels must be positive"):
+        assess_page_quality(_good_sheet(), max_sample_pixels=0)
