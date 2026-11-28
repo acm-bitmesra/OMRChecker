@@ -164,3 +164,17 @@ code { padding: 2px 5px; border-radius: 4px; background: #edf3ee; color: var(--g
 }
 .personal-sheet .section-label { margin-bottom: 4px; }
 .personal-sheet .helper { margin-bottom: 0; }
+.marking-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 4px; }
+.marking-grid .field-label { margin-top: 8px; }
+.button.danger { color: #a33b36; border-color: #f0caca; }
+.button.danger:hover:not(:disabled) { background: #fff0ef; }
+.scan-preview-wrap { margin: 14px 0; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: #f8fbf8; text-align: center; }
+.scan-preview { max-width: 100%; max-height: 360px; object-fit: contain; border-radius: 6px; }
+.analytics-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin-top: 14px; }
+.analytics-pill { display: grid; gap: 2px; padding: 9px; border: 1px solid var(--line); border-radius: 8px; background: #fbfdfb; }
+.analytics-pill span { color: var(--muted); font: 10px 'DM Mono', monospace; }
+.analytics-pill strong { color: var(--green-dark); font: 700 14px Manrope, sans-serif; }
+.analytics-pill small { color: var(--muted); font-size: 10px; }
+@media (max-width: 740px) {
+  .analytics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
