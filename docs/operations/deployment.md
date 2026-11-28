@@ -6,6 +6,7 @@
 - **Production:** private database and object storage, authenticated API, independent worker, TLS, backups, and monitoring.
 
 ## Initial topology
+- **Zero-cost standalone option:** `streamlit_app.py` + `.streamlit/config.toml` + root `requirements.txt` for single-click deployment on Streamlit Community Cloud (uses local SQLite and local filesystem storage; best for demos, workshops, and small batches).
 - Next.js frontend on managed web platform or container runtime.
 - FastAPI in Docker.
 - Celery worker in separate Docker process.
