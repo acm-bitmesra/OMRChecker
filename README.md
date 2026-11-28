@@ -72,6 +72,13 @@ pnpm dev
 
 Open http://localhost:3000.
 
+### Quick free deployment (Streamlit Community Cloud)
+
+OMR Checker includes a standalone `streamlit_app.py` and `.streamlit/config.toml` for zero-cost, one-click deployment without separate PostgreSQL, Redis, or Node.js servers:
+
+- **Local launch:** `streamlit run streamlit_app.py`
+- **Streamlit Community Cloud:** Connect the repository, keep branch `main` and main file path `streamlit_app.py`, and deploy directly using root `requirements.txt`.
+
 ### 4. Create and evaluate an exam
 
 1. Create an exam (up to 100 questions).

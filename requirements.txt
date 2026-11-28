@@ -2,5 +2,6 @@
 -e ./packages/template-engine
 -e ./services/api
 -e ./services/worker
+streamlit>=1.39
 pytest>=8.0
 httpx>=0.27
