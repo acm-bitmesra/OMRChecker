@@ -276,6 +276,8 @@ async def upload_scan(
                 source_path.unlink(missing_ok=True)
                 raise HTTPException(status_code=413, detail=f"PDF cannot exceed {MAX_PDF_PAGES} pages")
             if len(document) == 0:
+                document.close()
+                source_path.unlink(missing_ok=True)
                 raise HTTPException(status_code=422, detail="The PDF has no pages")
             for page_index, page in enumerate(document, start=1):
                 pixmap = page.get_pixmap(dpi=200, alpha=False)
@@ -337,6 +339,85 @@ def get_scan(scan_id: str, db: Session = Depends(get_db)) -> dict:
     if scan is None:
         raise HTTPException(status_code=404, detail="Scan not found")
     return scan_payload(scan)
+
+
+@app.get(f"{API_PREFIX}/scans/{{scan_id}}/image", tags=["scans"])
+def get_scan_image(scan_id: str, db: Session = Depends(get_db)) -> Response:
+    scan = db.get(Scan, scan_id)
+    if scan is None:
+        raise HTTPException(status_code=404, detail="Scan not found")
+    storage = ensure_local_storage().resolve()
+    image_path = Path(scan.image_path).resolve()
+    if not image_path.is_relative_to(storage):
+        raise HTTPException(status_code=403, detail="Scan image path is outside storage root")
+    if not image_path.is_file():
+        raise HTTPException(status_code=404, detail="Scan image not found")
+    suffix = image_path.suffix.lower()
+    media_type = "image/png" if suffix == ".png" else "image/jpeg" if suffix in {".jpg", ".jpeg"} else "application/octet-stream"
+    return Response(content=image_path.read_bytes(), media_type=media_type)
+
+
+@app.post(f"{API_PREFIX}/scans/{{scan_id}}/reprocess", status_code=202, tags=["scans"])
+def reprocess_scan(
+    scan_id: str,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+) -> dict:
+    scan = db.get(Scan, scan_id)
+    if scan is None:
+        raise HTTPException(status_code=404, detail="Scan not found")
+    if not Path(scan.image_path).is_file():
+        raise HTTPException(status_code=404, detail="Stored scan image is missing")
+    scan.status = "queued"
+    scan.error_message = ""
+    scan.result_json = None
+    db.commit()
+    db.refresh(scan)
+    background_tasks.add_task(process_scan_record, scan.id)
+    return scan_payload(scan)
+
+
+def _unlink_within_storage(path_str: str, storage: Path) -> None:
+    if not path_str:
+        return
+    try:
+        resolved = Path(path_str).resolve()
+    except OSError:
+        return
+    if resolved.is_relative_to(storage) and resolved.is_file():
+        resolved.unlink(missing_ok=True)
+
+
+@app.delete(f"{API_PREFIX}/scans/{{scan_id}}", tags=["scans"])
+def delete_scan(scan_id: str, db: Session = Depends(get_db)) -> dict:
+    scan = db.get(Scan, scan_id)
+    if scan is None:
+        raise HTTPException(status_code=404, detail="Scan not found")
+    storage = ensure_local_storage().resolve()
+    image_path = scan.image_path
+    source_path = scan.source_path
+    db.delete(scan)
+    db.commit()
+
+    _unlink_within_storage(image_path, storage)
+    if source_path != image_path:
+        sibling = db.scalars(select(Scan).where(Scan.source_path == source_path)).first()
+        if sibling is None:
+            _unlink_within_storage(source_path, storage)
+    return {"deleted": True, "id": scan_id}
+
+
+@app.delete(f"{API_PREFIX}/exams/{{exam_id}}", tags=["exams"])
+def delete_exam(exam_id: str, db: Session = Depends(get_db)) -> dict:
+    exam = get_exam_or_404(db, exam_id)
+    storage = ensure_local_storage().resolve()
+    paths = [(scan.image_path, scan.source_path) for scan in exam.scans]
+    db.delete(exam)
+    db.commit()
+    for image_path, source_path in paths:
+        _unlink_within_storage(image_path, storage)
+        _unlink_within_storage(source_path, storage)
+    return {"deleted": True, "id": exam_id}
 
 
 @app.patch(f"{API_PREFIX}/scans/{{scan_id}}/review", tags=["review"])
@@ -419,4 +500,47 @@ def exam_summary(exam_id: str, db: Session = Depends(get_db)) -> dict:
         "failed": sum(scan.status == "failed" for scan in scans),
         "evaluated": len(evaluated),
         "average_score": round(sum(scores) / len(scores), 2) if scores else None,
+    }
+
+
+@app.get(f"{API_PREFIX}/exams/{{exam_id}}/analytics", tags=["results"])
+def exam_analytics(exam_id: str, db: Session = Depends(get_db)) -> dict:
+    exam = get_exam_or_404(db, exam_id)
+    scans = db.scalars(select(Scan).where(Scan.exam_id == exam_id)).all()
+    evaluated = [scan for scan in scans if scan.status == "evaluated" and scan.result_json]
+    scores = [float(scan.result_json["score"]) for scan in evaluated]
+    answer_key = exam.answer_key_json or {}
+
+    question_stats = []
+    for q_num in range(1, exam.total_questions + 1):
+        key = str(q_num)
+        expected = answer_key.get(key)
+        correct = incorrect = blank = 0
+        for scan in evaluated:
+            actual = (scan.approved_answers_json or {}).get(key)
+            if actual is None:
+                blank += 1
+            elif expected is not None and actual == expected:
+                correct += 1
+            else:
+                incorrect += 1
+        attempts = len(evaluated)
+        question_stats.append(
+            {
+                "question": key,
+                "attempts": attempts,
+                "correct": correct,
+                "incorrect": incorrect,
+                "blank": blank,
+                "accuracy": round(correct / attempts, 4) if attempts else 0.0,
+            }
+        )
+
+    return {
+        "total_scans": len(scans),
+        "evaluated": len(evaluated),
+        "average_score": round(sum(scores) / len(scores), 2) if scores else None,
+        "min_score": round(min(scores), 2) if scores else None,
+        "max_score": round(max(scores), 2) if scores else None,
+        "question_stats": question_stats,
     }
