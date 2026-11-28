@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { CameraCapture } from "./components/CameraCapture";
 
@@ -44,6 +45,22 @@ type Scan = {
   error_message: string;
 };
 
+type ExamAnalytics = {
+  total_scans: number;
+  evaluated: number;
+  average_score: number | null;
+  min_score: number | null;
+  max_score: number | null;
+  question_stats: Array<{
+    question: string;
+    attempts: number;
+    correct: number;
+    incorrect: number;
+    blank: number;
+    accuracy: number;
+  }>;
+};
+
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API}${path}`, init);
   if (!response.ok) {
@@ -62,6 +79,12 @@ export default function HomePage() {
   const [reviewValues, setReviewValues] = useState<Record<string, string>>({});
   const [examName, setExamName] = useState("");
   const [questionCount, setQuestionCount] = useState(50);
+  const [optionCount, setOptionCount] = useState(4);
+  const [correctMarks, setCorrectMarks] = useState(4);
+  const [incorrectMarks, setIncorrectMarks] = useState(-1);
+  const [blankMarks, setBlankMarks] = useState(0);
+  const [analytics, setAnalytics] = useState<ExamAnalytics | null>(null);
+  const [previewAvailable, setPreviewAvailable] = useState(true);
   const [studentId, setStudentId] = useState("");
   const [studentName, setStudentName] = useState("");
   const [sheetStudentId, setSheetStudentId] = useState("");
@@ -89,41 +112,60 @@ export default function HomePage() {
   const loadScans = useCallback(async (examId: string) => {
     if (!examId) {
       setScans([]);
+      setAnalytics(null);
       return;
     }
     const data = await api<Scan[]>(`/exams/${examId}/scans`);
     setScans(data);
+    try {
+      const stats = await api<ExamAnalytics>(`/exams/${examId}/analytics`);
+      setAnalytics(stats);
+    } catch {
+      setAnalytics(null);
+    }
   }, []);
 
   useEffect(() => {
-    loadExams().catch((err: Error) => setError(err.message));
-  }, [loadExams]);
+    let active = true;
+    api<Exam[]>("/exams")
+      .then((data) => {
+        if (!active) return;
+        setExams(data);
+        setSelectedExamId((current) => current || data[0]?.id || "");
+      })
+      .catch((err: Error) => {
+        if (active) setError(err.message);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!selectedExamId) return;
-    loadScans(selectedExamId).catch((err: Error) => setError(err.message));
+    let active = true;
+    const refresh = () => {
+      loadScans(selectedExamId).catch((err: Error) => {
+        if (active) setError(err.message);
+      });
+    };
+    const initialTimer = window.setTimeout(refresh, 0);
     const timer = window.setInterval(() => {
       loadScans(selectedExamId).catch(() => undefined);
     }, 4000);
-    return () => window.clearInterval(timer);
+    return () => {
+      active = false;
+      window.clearTimeout(initialTimer);
+      window.clearInterval(timer);
+    };
   }, [selectedExamId, loadScans]);
-
-  useEffect(() => {
-    if (!selectedScan) return;
-    const values: Record<string, string> = {};
-    for (const [number, detection] of Object.entries(selectedScan.detections?.questions ?? {})) {
-      if (detection.state === "single") values[number] = detection.selected_options[0] ?? "__review__";
-      else if (detection.state === "blank") values[number] = "__blank__";
-      else values[number] = "__review__";
-    }
-    setReviewValues(values);
-  }, [selectedScan]);
 
   async function createExam(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy(true);
     setError("");
     setNotice("");
+    const optionLabels = ["A", "B", "C", "D"].slice(0, optionCount);
     try {
       const exam = await api<Exam>("/exams", {
         method: "POST",
@@ -131,10 +173,10 @@ export default function HomePage() {
         body: JSON.stringify({
           name: examName,
           total_questions: questionCount,
-          options: ["A", "B", "C", "D"],
-          correct_marks: 4,
-          incorrect_marks: -1,
-          blank_marks: 0,
+          options: optionLabels,
+          correct_marks: correctMarks,
+          incorrect_marks: incorrectMarks,
+          blank_marks: blankMarks,
         }),
       });
       await loadExams();
@@ -150,13 +192,21 @@ export default function HomePage() {
 
   async function saveAnswerKey() {
     if (!selectedExam) return;
+    const allowedOptions = new Set(selectedExam.options.map((opt) => opt.toUpperCase()));
     const answers: Record<string, string> = {};
     for (const line of answerKeyText.split("\n")) {
-      const match = line.trim().match(/^(\d+)\s*[:,-]\s*([A-D])$/i);
-      if (match) answers[match[1]] = match[2].toUpperCase();
+      const match = line.trim().match(/^(\d+)\s*[:,-]\s*([A-Za-z0-9]+)$/i);
+      if (match) {
+        const option = match[2].toUpperCase();
+        if (allowedOptions.has(option)) {
+          answers[match[1]] = option;
+        }
+      }
     }
     if (Object.keys(answers).length !== selectedExam.total_questions) {
-      setError(`Enter one answer for all ${selectedExam.total_questions} questions, e.g. 1:A (one per line).`);
+      setError(
+        `Enter one valid answer (${selectedExam.options.join("/")}) for all ${selectedExam.total_questions} questions, e.g. 1:A.`,
+      );
       return;
     }
     setBusy(true);
@@ -165,11 +215,7 @@ export default function HomePage() {
       await api(`/exams/${selectedExam.id}/answer-key`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          answers,
-          student_id: reviewStudentId.trim(),
-          student_name: reviewStudentName.trim(),
-        }),
+        body: JSON.stringify({ answers }),
       });
       await loadExams();
       await loadScans(selectedExam.id);
@@ -244,11 +290,54 @@ export default function HomePage() {
   async function openReview(scan: Scan) {
     try {
       const detail = await api<Scan>(`/scans/${scan.id}`);
+      const values: Record<string, string> = {};
+      for (const [number, detection] of Object.entries(detail.detections?.questions ?? {})) {
+        if (detection.state === "single") values[number] = detection.selected_options[0] ?? "__review__";
+        else if (detection.state === "blank") values[number] = "__blank__";
+        else values[number] = "__review__";
+      }
+      setReviewValues(values);
       setReviewStudentId(detail.student_id ?? "");
       setReviewStudentName(detail.student_name ?? "");
+      setPreviewAvailable(true);
       setSelectedScan(detail);
     } catch (err) {
       setError((err as Error).message);
+    }
+  }
+
+  async function reprocessScan(scanId: string) {
+    if (!selectedExam) return;
+    setBusy(true);
+    setError("");
+    try {
+      await api(`/scans/${scanId}/reprocess`, { method: "POST" });
+      await loadScans(selectedExam.id);
+      setNotice("Scan re-queued for OMR recognition.");
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function deleteSelectedExam() {
+    if (!selectedExam) return;
+    if (!window.confirm(`Delete examination "${selectedExam.name}" and all its scans?`)) {
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      await api(`/exams/${selectedExam.id}`, { method: "DELETE" });
+      setSelectedScan(null);
+      setSelectedExamId("");
+      await loadExams();
+      setNotice("Examination deleted.");
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -273,7 +362,11 @@ export default function HomePage() {
       const updated = await api<Scan>(`/scans/${selectedScan.id}/review`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ answers }),
+        body: JSON.stringify({
+          answers,
+          student_id: reviewStudentId.trim(),
+          student_name: reviewStudentName.trim(),
+        }),
       });
       setSelectedScan(updated);
       await loadScans(selectedExam.id);
@@ -294,10 +387,10 @@ export default function HomePage() {
   return (
     <main className="app-shell">
       <header className="topbar">
-        <a className="brand" href="/">
+        <Link className="brand" href="/">
           <span className="brand-icon">O</span>
           <span>OMR Checker</span>
-        </a>
+        </Link>
         <span className="topbar-note">ACM BIT Mesra · Examination workspace</span>
       </header>
 
@@ -328,8 +421,34 @@ export default function HomePage() {
             <div className="section-label">NEW EXAMINATION</div>
             <label className="field-label" htmlFor="exam-name">Exam name</label>
             <input id="exam-name" value={examName} onChange={(event) => setExamName(event.target.value)} placeholder="e.g. Mathematics Midterm" minLength={2} required />
-            <label className="field-label" htmlFor="question-count">Questions (1–100)</label>
-            <input id="question-count" type="number" min={1} max={100} value={questionCount} onChange={(event) => setQuestionCount(Number(event.target.value))} required />
+            <div className="form-grid">
+              <div>
+                <label className="field-label" htmlFor="question-count">Questions (1–100)</label>
+                <input id="question-count" type="number" min={1} max={100} value={questionCount} onChange={(event) => setQuestionCount(Number(event.target.value))} required />
+              </div>
+              <div>
+                <label className="field-label" htmlFor="option-count">Options</label>
+                <select id="option-count" value={optionCount} onChange={(event) => setOptionCount(Number(event.target.value))}>
+                  <option value={2}>2 (A–B)</option>
+                  <option value={3}>3 (A–C)</option>
+                  <option value={4}>4 (A–D)</option>
+                </select>
+              </div>
+            </div>
+            <div className="marking-grid">
+              <div>
+                <label className="field-label" htmlFor="correct-marks">Correct</label>
+                <input id="correct-marks" type="number" step="0.25" min={0.25} max={100} value={correctMarks} onChange={(event) => setCorrectMarks(Number(event.target.value))} required />
+              </div>
+              <div>
+                <label className="field-label" htmlFor="incorrect-marks">Wrong</label>
+                <input id="incorrect-marks" type="number" step="0.25" min={-100} max={100} value={incorrectMarks} onChange={(event) => setIncorrectMarks(Number(event.target.value))} required />
+              </div>
+              <div>
+                <label className="field-label" htmlFor="blank-marks">Blank</label>
+                <input id="blank-marks" type="number" step="0.25" min={-100} max={100} value={blankMarks} onChange={(event) => setBlankMarks(Number(event.target.value))} required />
+              </div>
+            </div>
             <button className="button primary full" type="submit" disabled={busy}>{busy ? "Working…" : "Create examination"}</button>
           </form>
 
@@ -350,6 +469,7 @@ export default function HomePage() {
                 <p className="helper">Each PDF contains an opaque QR token linked to this candidate. Mixed-student PDF batches can be scanned together.</p>
               </div>
               <a className="export-link" href={`${API}/exams/${selectedExam.id}/results.csv`} target="_blank" rel="noreferrer">Export evaluated results ↗</a>
+              <button className="button ghost danger full" type="button" onClick={deleteSelectedExam} disabled={busy}>Delete examination</button>
             </div>
           )}
         </aside>
@@ -420,18 +540,49 @@ export default function HomePage() {
                         </div>
                         <span className={`status status-${scan.status}`}>{statusLabel(scan.status)}</span>
                         <div className="scan-score">{scan.result ? `${scan.result.score} / ${scan.result.maximum_score}` : "—"}</div>
-                        {["needs_review", "failed", "awaiting_key"].includes(scan.status) && <button className="button small secondary" onClick={() => openReview(scan)}>{scan.status === "needs_review" ? "Review" : "Open"}</button>}
+                        {["needs_review", "failed", "awaiting_key"].includes(scan.status) && (
+                          <button className="button ghost small" type="button" onClick={() => reprocessScan(scan.id)} disabled={busy}>Reprocess</button>
+                        )}
+                        {["needs_review", "failed", "awaiting_key", "evaluated"].includes(scan.status) && (
+                          <button className="button small secondary" type="button" onClick={() => openReview(scan)}>{scan.status === "needs_review" ? "Review" : "Inspect"}</button>
+                        )}
                       </div>
                     ))}
                   </div>
                 ) : <div className="empty-state"><span>▤</span><strong>No sheets uploaded yet</strong><p>Upload your first completed OMR sheet to see recognition results here.</p></div>}
               </div>
 
+              {analytics && analytics.evaluated > 0 && (
+                <div className="content-card">
+                  <div className="card-head"><div><div className="section-label">ANALYTICS</div><h3>Score &amp; question breakdown</h3></div><span className="muted">Avg {analytics.average_score ?? "—"} · Range {analytics.min_score ?? "—"}–{analytics.max_score ?? "—"}</span></div>
+                  <div className="analytics-grid">
+                    {analytics.question_stats.slice(0, 20).map((item) => (
+                      <div className="analytics-pill" key={item.question}>
+                        <span>Q{item.question}</span>
+                        <strong>{Math.round(item.accuracy * 100)}%</strong>
+                        <small>{item.correct}✓ {item.incorrect}✗ {item.blank}–</small>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {selectedScan && (
                 <div className="content-card review-card">
                   <div className="card-head"><div><div className="section-label">MANUAL REVIEW</div><h3>Confirm detected responses</h3></div><button className="button ghost" onClick={() => setSelectedScan(null)}>Close ×</button></div>
                   <p className="helper">Clear single marks and blanks are prefilled. Resolve every item marked “Choose…” before saving.</p>
                   {selectedScan.error_message && <div className="alert error">{selectedScan.error_message}</div>}
+                  {previewAvailable && (
+                    <div className="scan-preview-wrap">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        className="scan-preview"
+                        src={`${API}/scans/${selectedScan.id}/image`}
+                        alt={`Scanned answer sheet for ${selectedScan.student_id || selectedScan.original_filename}`}
+                        onError={() => setPreviewAvailable(false)}
+                      />
+                    </div>
+                  )}
                   <div className="form-grid">
                     <div><label className="field-label" htmlFor="review-student-id">Student ID / roll number</label><input id="review-student-id" value={reviewStudentId} onChange={(event) => setReviewStudentId(event.target.value)} placeholder="Required to finalize result" /></div>
                     <div><label className="field-label" htmlFor="review-student-name">Student name</label><input id="review-student-name" value={reviewStudentName} onChange={(event) => setReviewStudentName(event.target.value)} placeholder="Candidate name" /></div>
@@ -440,6 +591,11 @@ export default function HomePage() {
                     {Array.from({ length: selectedExam.total_questions }, (_, index) => {
                       const q = String(index + 1);
                       const detection = selectedScan.detections?.questions?.[q];
+                      const ratioText = detection?.fill_ratios
+                        ? Object.entries(detection.fill_ratios)
+                            .map(([opt, val]) => `${opt}:${Math.round(val * 100)}%`)
+                            .join(" ")
+                        : "";
                       return (
                         <label className="review-item" key={q}>
                           <span>Q{q}</span>
@@ -448,7 +604,7 @@ export default function HomePage() {
                             <option value="__blank__">Blank</option>
                             {selectedExam.options.map((option) => <option key={option} value={option}>{option}</option>)}
                           </select>
-                          <small>{detection?.state ?? "not detected"}</small>
+                          <small title={ratioText}>{detection?.state ?? "not detected"}{ratioText ? ` · ${ratioText}` : ""}</small>
                         </label>
                       );
                     })}
